@@ -1,9 +1,17 @@
 package urlshort
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
+
+	"gopkg.in/yaml.v2"
 )
+
+type pathUrl struct {
+	Path string `yaml:"path,omitempty"`
+	URL  string `yaml:"url,omitempty"`
+}
 
 // MapHandler will return an http.HandlerFunc (which also
 // implements http.Handler) that will attempt to map any
@@ -12,19 +20,14 @@ import (
 // If the path is not provided in the map, then the fallback
 // http.Handler will be called instead.
 func MapHandler(pathsToUrls map[string]string, fallback http.Handler) http.HandlerFunc {
-
-	mux := http.NewServeMux()
-
-	for key, value := range pathsToUrls {
-		fmt.Println("Registering:", key, " ", value)
-		mux.HandleFunc(key, func(w http.ResponseWriter, r *http.Request) {
-			http.Redirect(w, r, value, http.StatusPermanentRedirect)
-		})
+	return func(w http.ResponseWriter, r *http.Request) {
+		path := r.URL.Path
+		if dest, ok := pathsToUrls[path]; ok {
+			http.Redirect(w, r, dest, http.StatusPermanentRedirect)
+			return
+		}
+		fallback.ServeHTTP(w, r)
 	}
-
-	mux.HandleFunc("/", fallback.ServeHTTP)
-
-	return mux.ServeHTTP
 }
 
 // YAMLHandler will parse the provided YAML and then return
@@ -44,6 +47,32 @@ func MapHandler(pathsToUrls map[string]string, fallback http.Handler) http.Handl
 // See MapHandler to create a similar http.HandlerFunc via
 // a mapping of paths to urls.
 func YAMLHandler(yml []byte, fallback http.Handler) (http.HandlerFunc, error) {
-	// TODO: Implement this...
-	return nil, nil
+	var pathURLs []pathUrl
+
+	err := yaml.Unmarshal(yml, &pathURLs)
+	if err != nil {
+		fmt.Println("error in Unmarshalling YAML")
+		return nil, err
+	}
+	// convert pathURLs to map for mapHandler
+	data := make(map[string]string)
+	for _, pu := range pathURLs {
+		// fmt.Println("Data:", pu.Path, pu.URL)
+		data[pu.Path] = pu.URL
+	}
+
+	return MapHandler(data, fallback), nil
+}
+
+func JSONHandler(yml []byte, fallback http.Handler) (http.HandlerFunc, error) {
+	data := make(map[string]string)
+
+	err := json.Unmarshal(yml, &data)
+	if err != nil {
+		fmt.Println("error in Unmarshalling JSON")
+		return nil, err
+	}
+	//fmt.Println("Data: ", data)
+
+	return MapHandler(data, fallback), nil
 }

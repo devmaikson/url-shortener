@@ -1,0 +1,8 @@
+- path: /gidf
+  url: https://google.de/
+- path: /apple
+  url: https://apple.com
+- path: /spiegel
+  url: https://spiegel.de
+- path: /telekom
+  url: https://telekom.de
